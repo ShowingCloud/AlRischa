@@ -34,7 +34,7 @@ class PNASSpider(scrapy.Spider):
         doi = response.xpath ('//meta[@name="DC.Identifier"]/@content').get()
         date = response.xpath ('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath ('//meta[@name="DC.Title"]/@content').get()
-        contribution = response.xpath ('//li[@id="fn-2"]/p/text()').get()
+        contribution = response.xpath ('//li[@class="fn-other"]/p/text()').get()
 
         for contributor in response.xpath ('//ol[@class="contributor-list"]/li'):
             author = contributor.xpath ('.//span[@class="name"]/text()').get()
