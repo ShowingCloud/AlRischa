@@ -34,14 +34,17 @@ class PNASSpider(scrapy.Spider):
         doi = response.xpath ('//meta[@name="DC.Identifier"]/@content').get()
         date = response.xpath ('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath ('//meta[@name="DC.Title"]/@content').get()
-        contribution = response.xpath ('//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
+        contribution = response.xpath ('//div[@id="fn-group-1"]/li/p/text()[contains(., "Author contributions")]').get()
 
         for contributor in response.xpath ('//ol[@class="contributor-list"]/li'):
             author = contributor.xpath ('.//span[@class="name"]/text()').get()
 
             ano = 1
             aff = {}
-            for affiliation in contributor.xpath ('.//a[@class="xref-aff"]/sup/text()').getall():
+            affiliations = contributor.xpath ('.//a[@class="xref-aff"]/sup/text()').getall()
+            if len (affiliations) == 0:
+                affiliations = contributor.xpath ('.//a[@class="xref-aff"]/text()').getall()
+            for affiliation in affiliations:
                 aff = {**aff,
                         'affiliation' + str (ano): response.xpath ('string(//ol[@class="affiliation-list"]/li/address[contains(.//sup/text(), $affiliation)])', affiliation = affiliation).get()
                         }
