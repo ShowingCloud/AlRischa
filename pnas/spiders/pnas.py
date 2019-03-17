@@ -31,24 +31,32 @@ class PNASSpider(scrapy.Spider):
 
 
     def parse(self, response):
+        response.selector.remove_namespaces()
+
         doi = response.xpath ('//meta[@name="DC.Identifier"]/@content').get()
         date = response.xpath ('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath ('//meta[@name="DC.Title"]/@content').get()
-        contribution = response.xpath ('//div[@id="fn-group-1"]/li/p/text()[contains(., "Author contributions")]').get()
+        contribution = response.xpath ('//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
 
         for contributor in response.xpath ('//ol[@class="contributor-list"]/li'):
-            author = contributor.xpath ('.//span[@class="name"]/text()').get()
+            author = contributor.xpath ('./span[@class="name"]/text()').get()
 
             ano = 1
             aff = {}
             affiliations = contributor.xpath ('.//a[@class="xref-aff"]/sup/text()').getall()
             if len (affiliations) == 0:
                 affiliations = contributor.xpath ('.//a[@class="xref-aff"]/text()').getall()
+
             for affiliation in affiliations:
                 aff = {**aff,
-                        'affiliation' + str (ano): response.xpath ('string(//ol[@class="affiliation-list"]/li/address[contains(.//sup/text(), $affiliation)])', affiliation = affiliation).get()
+                        'affiliation' + str (ano): ''.join ((node.xpath ('.//text()').get() or node.get())
+                            for node in response.xpath ('//ol[@class="affiliation-list"]/li/address[contains(.//sup/text(), $affiliation)]/node()[not(self::sup)]', affiliation = affiliation))
                         }
                 ano += 1
+            if not aff.get('affiliation1'):
+                aff = {'affiliation1': ''.join ((node.xpath ('.//text()').get() or node.get())
+                        for node in response.xpath ('//ol[@class="affiliation-list"]/li/address/node()[not(self::sup)]'))
+                    }
 
             yield {
                 "author": author,
