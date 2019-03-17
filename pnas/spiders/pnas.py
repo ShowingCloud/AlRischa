@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import csv
-import pkgutil, os, sys
+import pkgutil, os, sys, re
 
 class PNASSpider(scrapy.Spider):
     name = "pnas"
@@ -30,16 +30,29 @@ class PNASSpider(scrapy.Spider):
 #                    break
 
 
+    def get_contribution (self, author, contributions):
+        contributions_list = contributions.split (':')[1].split (';')
+        author_initials = ''.join (map (lambda s: s[0] + '.', re.split ('\W+', author)))
+        short_initials = author_initials[:2] + author_initials[-2]
+
+        contribution = ', '.join (contrib.split ('.')[-1].strip() for contrib in contributions_list if author_initials in contrib)
+        if contribution == "":
+            contribution = ', '.join (contrib.split ('.')[-1].strip() for contrib in contributions_list if short_initials in contrib)
+
+        return contribution
+
+
     def parse(self, response):
         response.selector.remove_namespaces()
 
         doi = response.xpath ('//meta[@name="DC.Identifier"]/@content').get()
         date = response.xpath ('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath ('//meta[@name="DC.Title"]/@content').get()
-        contribution = response.xpath ('//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
+        contributions = response.xpath ('//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
 
         for contributor in response.xpath ('//ol[@class="contributor-list"]/li'):
             author = contributor.xpath ('./span[@class="name"]/text()').get()
+            contribution = self.get_contribution (author, contributions)
 
             ano = 1
             aff = {}
