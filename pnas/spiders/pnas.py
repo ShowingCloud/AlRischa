@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
+"""Crawl author, affiliation, contribution and other information from PNAS"""
 import csv
-import pkgutil, os, sys, re
+import pkgutil
+import os
+import sys
+import re
 import scrapy
 
+
 class PNASSpider(scrapy.Spider):
+    """Crawl author, affiliation, contribution and other information from PNAS"""
     name = "pnas"
     resource = "resources/pnas.csv"
     start_urls = []
@@ -22,7 +28,6 @@ class PNASSpider(scrapy.Spider):
         parts.insert(0, os.path.dirname(mod.__file__))
         resource_name = os.path.join(*parts)
 
-
         with open(resource_name) as csvfile:
             reader = csv.DictReader(csvfile)
             for index, row in enumerate(reader):
@@ -32,28 +37,32 @@ class PNASSpider(scrapy.Spider):
 
         return None
 
-
     @staticmethod
     def get_contribution(author, contributions):
+        """To parse the contribution fields"""
         contributions_list = contributions.split(':')[1].split(';')
-        author_initials = ''.join(map(lambda s: s[0] + '.', re.split(r'\W+', author)))
+        author_initials = ''.join(
+            map(lambda s: s[0] + '.', re.split(r'\W+', author)))
         short_initials = author_initials[:2] + author_initials[-2]
 
-        contribution = ', '.join(contrib.split('.')[-1].strip() for contrib in contributions_list if author_initials in contrib)
+        contribution = ', '.join(contrib.split('.')[-1].strip()
+                                 for contrib in contributions_list if author_initials in contrib)
         if contribution == "":
-            contribution = ', '.join(contrib.split('.')[-1].strip() for contrib in contributions_list if short_initials in contrib)
+            contribution = ', '.join(contrib.split('.')[-1].strip()
+                                     for contrib in contributions_list if short_initials in contrib)
 
         return contribution
 
-
     @classmethod
     def parse(cls, response):
+        """Parsing the whole webpages"""
         response.selector.remove_namespaces()
 
         doi = response.xpath('//meta[@name="DC.Identifier"]/@content').get()
         date = response.xpath('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath('//meta[@name="DC.Title"]/@content').get()
-        contributions = response.xpath('//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
+        contributions = response.xpath(
+            '//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
 
         for contributor in response.xpath('//ol[@class="contributor-list"]/li'):
             author = contributor.xpath('./span[@class="name"]/text()').get()
@@ -61,20 +70,27 @@ class PNASSpider(scrapy.Spider):
 
             ano = 1
             aff = {}
-            affiliations = contributor.xpath('.//a[@class="xref-aff"]/sup/text()').getall()
+            affiliations = contributor.xpath(
+                './/a[@class="xref-aff"]/sup/text()').getall()
             if not affiliations:
-                affiliations = contributor.xpath('.//a[@class="xref-aff"]/text()').getall()
+                affiliations = contributor.xpath(
+                    './/a[@class="xref-aff"]/text()').getall()
 
             for affiliation in affiliations:
                 aff = {**aff,
-                        'affiliation' + str(ano): ''.join((node.xpath('.//text()').get() or node.get())
-                            for node in response.xpath('//ol[@class="affiliation-list"]/li/address[contains(.//sup/text(), $affiliation)]/node()[not(self::sup)]', affiliation = affiliation))
-                        }
+                       'affiliation' + str(ano): ''.join(
+                           (node.xpath('.//text()').get() or node.get())
+                           for node in response.xpath('//ol[@class="affiliation-list"]/li/address\\\
+                                   [contains(.//sup/text(), $affiliation)]/node()[not(self::sup)]',
+                                                      affiliation=affiliation))
+                       }
                 ano += 1
             if not aff.get('affiliation1'):
                 aff = {'affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
-                        for node in response.xpath('//ol[@class="affiliation-list"]/li/address/node()[not(self::sup)]'))
-                    }
+                                               for node in response.xpath(
+                                                   '//ol[@class="affiliation-list"]/li/address\\\
+                                                           /node()[not(self::sup)]'))
+                       }
 
             yield {
                 "author": author,
@@ -85,6 +101,7 @@ class PNASSpider(scrapy.Spider):
                 **aff
             }
 
-        next_page = response.xpath('//li[not(@class="active")]/a[@data-panel-name="jnl_pnas_tab_info"]/@href').get()
+        next_page = response.xpath(
+            '//li[not(@class="active")]/a[@data-panel-name="jnl_pnas_tab_info"]/@href').get()
         if next_page:
             yield scrapy.Request(response.urljoin(next_page))
