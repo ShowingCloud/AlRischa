@@ -93,7 +93,7 @@ class PNASSpider(scrapy.Spider):
                                affiliation=affiliation))
                        }
                 ano += 1
-            if not aff.get('affiliation1'):
+            if not aff.get('3.affiliation1'):
                 aff = {'3.affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
                                                  for node in response.xpath(
                                                      '//ol[@class="affiliation-list"]/li/address'
