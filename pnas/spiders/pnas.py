@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Crawl author, affiliation, contribution and other information from PNAS"""
+
 import csv
 import pkgutil
 import os
 import sys
 import re
+
 import scrapy
 
 
@@ -62,7 +64,8 @@ class PNASSpider(scrapy.Spider):
         date = response.xpath('//meta[@name="DC.Date"]/@content').get()
         title = response.xpath('//meta[@name="DC.Title"]/@content').get()
         contributions = response.xpath(
-            '//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]').get()
+            '//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]'
+        ).get()
 
         for contributor in response.xpath('//ol[@class="contributor-list"]/li'):
             author = contributor.xpath('./span[@class="name"]/text()').get()
@@ -71,37 +74,45 @@ class PNASSpider(scrapy.Spider):
             ano = 1
             aff = {}
             affiliations = contributor.xpath(
-                './/a[@class="xref-aff"]/sup/text()').getall()
+                './/a[@class="xref-aff"]/sup/text()'
+            ).getall()
             if not affiliations:
                 affiliations = contributor.xpath(
-                    './/a[@class="xref-aff"]/text()').getall()
+                    './/a[@class="xref-aff"]/text()'
+                ).getall()
 
             for affiliation in affiliations:
                 aff = {**aff,
-                       'affiliation' + str(ano): ''.join(
+                       ('3.affiliation1', 'affiliation' + str(ano))[ano == 1]:
+                       ''.join(
                            (node.xpath('.//text()').get() or node.get())
-                           for node in response.xpath('//ol[@class="affiliation-list"]/li/address\\\
-                                   [contains(.//sup/text(), $affiliation)]/node()[not(self::sup)]',
-                                                      affiliation=affiliation))
+                           for node in response.xpath(
+                               '//ol[@class="affiliation-list"]/li/address'
+                               '[contains(.//sup/text(), $affiliation)]'
+                               '/node()[not(self::sup)]',
+                               affiliation=affiliation))
                        }
                 ano += 1
             if not aff.get('affiliation1'):
-                aff = {'affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
-                                               for node in response.xpath(
-                                                   '//ol[@class="affiliation-list"]/li/address\\\
-                                                           /node()[not(self::sup)]'))
+                aff = {'3.affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
+                                                 for node in response.xpath(
+                                                     '//ol[@class="affiliation-list"]/li/address'
+                                                     '/node()[not(self::sup)]'))
                        }
 
             yield {
-                "author": author,
-                "doi": doi,
-                "date": date,
-                "title": title,
-                "contribution": contribution,
+                "1.author": author,
+                "2.contribution": contribution,
+                "4.national": None,
+                "5.Order": None,
+                "6.title": title,
+                "7.doi": doi,
+                "8.date": date,
                 **aff
             }
 
         next_page = response.xpath(
-            '//li[not(@class="active")]/a[@data-panel-name="jnl_pnas_tab_info"]/@href').get()
+            '//li[not(@class="active")]/a[@data-panel-name="jnl_pnas_tab_info"]/@href'
+        ).get()
         if next_page:
             yield scrapy.Request(response.urljoin(next_page))
