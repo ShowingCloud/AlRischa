@@ -58,7 +58,7 @@ class PNASSpider(scrapy.Spider):
     @staticmethod
     def get_affiliation(aref, alist):
         """To parse the affiliations"""
-        ano = 0
+        ano = 1
         aff = {}
 
         for affiliation in aref:
