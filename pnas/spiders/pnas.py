@@ -55,6 +55,31 @@ class PNASSpider(scrapy.Spider):
 
         return contribution
 
+    @staticmethod
+    def get_affiliation(aref, alist):
+        """To parse the affiliations"""
+        ano = 0
+        aff = {}
+
+        for affiliation in aref:
+            aff = {**aff,
+                   ('Affiliation' + str(ano), '3.Affiliation1')[ano == 1]:
+                   ''.join(
+                       (node.xpath('.//text()').get() or node.get())
+                       for node in alist.xpath(
+                           '[contains(.//sup/text(), $affiliation)]'
+                           '/node()[not(self::sup)]',
+                           affiliation=affiliation))
+                   }
+            ano += 1
+
+        if not aff.get('3.Affiliation1'):
+            return {'3.Affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
+                                              for node in alist.xpath('/node()[not(self::sup)]'))
+                   }
+
+        return aff
+
     @classmethod
     def parse(cls, response):
         """Parsing the whole webpages"""
@@ -71,34 +96,13 @@ class PNASSpider(scrapy.Spider):
             author = contributor.xpath('./span[@class="name"]/text()').get()
             contribution = cls.get_contribution(author, contributions)
 
-            ano = 1
-            aff = {}
-            affiliations = contributor.xpath(
+            affiliation_ref = contributor.xpath(
                 './/a[@class="xref-aff"]/sup/text()'
+            ).getall() or contributor.xpath(
+                './/a[@class="xref-aff"]/text()'
             ).getall()
-            if not affiliations:
-                affiliations = contributor.xpath(
-                    './/a[@class="xref-aff"]/text()'
-                ).getall()
-
-            for affiliation in affiliations:
-                aff = {**aff,
-                       ('Affiliation' + str(ano), '3.Affiliation1')[ano == 1]:
-                       ''.join(
-                           (node.xpath('.//text()').get() or node.get())
-                           for node in response.xpath(
-                               '//ol[@class="affiliation-list"]/li/address'
-                               '[contains(.//sup/text(), $affiliation)]'
-                               '/node()[not(self::sup)]',
-                               affiliation=affiliation))
-                       }
-                ano += 1
-            if not aff.get('3.Affiliation1'):
-                aff = {'3.Affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
-                                                 for node in response.xpath(
-                                                     '//ol[@class="affiliation-list"]/li/address'
-                                                     '/node()[not(self::sup)]'))
-                       }
+            affiliation_list = response.xpath('//ol[@class="affiliation-list"]/li/address')
+            affiliations = cls.get_affiliation(affiliation_ref, affiliation_list)
 
             yield {
                 "1.Author": author,
@@ -108,7 +112,7 @@ class PNASSpider(scrapy.Spider):
                 "6.Title": title,
                 "7.Doi": doi,
                 "8.Date": date,
-                **aff
+                **affiliations
             }
 
         next_page = response.xpath(
