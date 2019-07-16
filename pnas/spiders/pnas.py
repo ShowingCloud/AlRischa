@@ -92,7 +92,7 @@ class PNASSpider(scrapy.Spider):
             '//div[@id="fn-group-1"]//li/p/text()[contains(., "Author contributions")]'
         ).get()
 
-        for contributor in response.xpath('//ol[@class="contributor-list"]/li'):
+        for order, contributor in enumerate(response.xpath('//ol[@class="contributor-list"]/li')):
             author = contributor.xpath('./span[@class="name"]/text()').get()
             contribution = cls.get_contribution(author, contributions)
 
@@ -107,8 +107,8 @@ class PNASSpider(scrapy.Spider):
             yield {
                 "1.Author": author,
                 "2.Contribution": contribution,
-                "4.National": None,
-                "5.Order": None,
+                "4.National": affiliations.get('3.Affiliation1').split(';')[0].split(',')[-1],
+                "5.Order": order + 1,
                 "6.Title": title,
                 "7.Doi": doi,
                 "8.Date": date,
