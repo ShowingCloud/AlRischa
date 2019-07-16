@@ -67,7 +67,7 @@ class PNASSpider(scrapy.Spider):
                    ''.join(
                        (node.xpath('.//text()').get() or node.get())
                        for node in alist.xpath(
-                           '[contains(.//sup/text(), $affiliation)]'
+                           './/address[contains(.//sup/text(), $affiliation)]'
                            '/node()[not(self::sup)]',
                            affiliation=affiliation))
                    }
@@ -75,7 +75,9 @@ class PNASSpider(scrapy.Spider):
 
         if not aff.get('3.Affiliation1'):
             return {'3.Affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
-                                              for node in alist.xpath('/node()[not(self::sup)]'))
+                                              for node in alist.xpath(
+                                                  './/address/node()[not(self::sup)]'
+                                                  ))
                    }
 
         return aff
@@ -101,7 +103,7 @@ class PNASSpider(scrapy.Spider):
             ).getall() or contributor.xpath(
                 './/a[@class="xref-aff"]/text()'
             ).getall()
-            affiliation_list = response.xpath('//ol[@class="affiliation-list"]/li/address')
+            affiliation_list = response.xpath('//ol[@class="affiliation-list"]/li')
             affiliations = cls.get_affiliation(affiliation_ref, affiliation_list)
 
             yield {
