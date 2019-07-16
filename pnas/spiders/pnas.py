@@ -83,7 +83,7 @@ class PNASSpider(scrapy.Spider):
 
             for affiliation in affiliations:
                 aff = {**aff,
-                       ('3.affiliation1', 'affiliation' + str(ano))[ano == 1]:
+                       ('Affiliation' + str(ano), '3.Affiliation1')[ano == 1]:
                        ''.join(
                            (node.xpath('.//text()').get() or node.get())
                            for node in response.xpath(
@@ -93,21 +93,21 @@ class PNASSpider(scrapy.Spider):
                                affiliation=affiliation))
                        }
                 ano += 1
-            if not aff.get('3.affiliation1'):
-                aff = {'3.affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
+            if not aff.get('3.Affiliation1'):
+                aff = {'3.Affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
                                                  for node in response.xpath(
                                                      '//ol[@class="affiliation-list"]/li/address'
                                                      '/node()[not(self::sup)]'))
                        }
 
             yield {
-                "1.author": author,
-                "2.contribution": contribution,
-                "4.national": None,
+                "1.Author": author,
+                "2.Contribution": contribution,
+                "4.National": None,
                 "5.Order": None,
-                "6.title": title,
-                "7.doi": doi,
-                "8.date": date,
+                "6.Title": title,
+                "7.Doi": doi,
+                "8.Date": date,
                 **aff
             }
 
