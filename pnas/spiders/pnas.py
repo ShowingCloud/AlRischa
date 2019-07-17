@@ -43,44 +43,56 @@ class PNASSpider(scrapy.Spider):
     def get_contribution(author, contributions):
         """To parse the contribution fields"""
         contributions_list = contributions.split(':')[1].split(';')
-        author_initials = ''.join(
-            map(lambda s: s[0] + '.', re.split(r'\W+', author)))
-        short_initials = author_initials[:2] + author_initials[-2]
+
+        author_initials = ''
+        short_initials = ''
+        try:
+            author_initials = '-'.join(''.join(
+                map(lambda s: s[0] + '.', re.split(r'\W+', i)))
+                                       for i in author.split('-'))
+            short_initials = author_initials[:2] + author_initials[-2]
+        except:
+            pass
+
 
         contribution = ', '.join(contrib.split('.')[-1].strip()
-                                 for contrib in contributions_list if author_initials in contrib)
-        if contribution == "":
-            contribution = ', '.join(contrib.split('.')[-1].strip()
-                                     for contrib in contributions_list if short_initials in contrib)
+                                 for contrib in contributions_list
+                                 if author_initials in contrib
+                                 or short_initials in contrib
+                                 or author in contrib)
 
         return contribution
 
-    @staticmethod
-    def get_affiliation(aref, alist):
+    @classmethod
+    def get_affiliation(cls, aref, alist):
         """To parse the affiliations"""
-        ano = 1
-        aff = {}
+        return {(
+            ('', '3. ')[ref[0] == 0 and entry[0] == 0] +
+            'Affiliation' + str(ref[0] + 1) +
+            (str(entry[0] + 1), '')[entry[0] == 0]):
+                cls.strip_info(''.join(
+                    node.xpath('.//text()').get() or node.get()
+                    for node in entry[1].xpath(
+                        './/node()[not(self::sup)]')))
+                for ref in enumerate(aref)
+                for entry in enumerate(alist.xpath(
+                    './/address[sup[text()=$affiliation]]',
+                    affiliation=ref[1]))} or {
+                        '3. Affiliation1': cls.strip_info(''.join(
+                            (node.xpath('.//text()').get() or node.get())
+                            for node in alist.xpath(
+                                './/address/node()[not(self::sup)]'
+                                )))
+                    }
 
-        for affiliation in aref:
-            aff = {**aff,
-                   ('Affiliation' + str(ano), '3.Affiliation1')[ano == 1]:
-                   ''.join(
-                       (node.xpath('.//text()').get() or node.get())
-                       for node in alist.xpath(
-                           './/address[contains(.//sup/text(), $affiliation)]'
-                           '/node()[not(self::sup)]',
-                           affiliation=affiliation))
-                   }
-            ano += 1
-
-        if not aff.get('3.Affiliation1'):
-            return {'3.Affiliation1': ''.join((node.xpath('.//text()').get() or node.get())
-                                              for node in alist.xpath(
-                                                  './/address/node()[not(self::sup)]'
-                                                  ))
-                   }
-
-        return aff
+    @staticmethod
+    def strip_info(info):
+        """(Hopefully) remove any white spaces and control characters
+        from the beginning and end of the strings"""
+        try:
+            return re.sub(r'^(\\n)*,*\s*(.*)\s*(\\n)*$', r'\2', info)
+        except:
+            return info
 
     @classmethod
     def parse(cls, response):
@@ -95,25 +107,31 @@ class PNASSpider(scrapy.Spider):
         ).get()
 
         for order, contributor in enumerate(response.xpath('//ol[@class="contributor-list"]/li')):
-            author = contributor.xpath('./span[@class="name"]/text()').get()
+            author = (contributor.xpath('./span[@class="name"]/text()').get() or
+                      contributor.xpath('./span[@class="collab"]/text()').get())
             contribution = cls.get_contribution(author, contributions)
 
             affiliation_ref = contributor.xpath(
                 './/a[@class="xref-aff"]/sup/text()'
             ).getall() or contributor.xpath(
+                './/a[@class="xref-fn"]/sup/text()'
+            ).getall() or contributor.xpath(
                 './/a[@class="xref-aff"]/text()'
+            ).getall() or contributor.xpath(
+                './/a[@class="xref-fn"]/text()'
             ).getall()
             affiliation_list = response.xpath('//ol[@class="affiliation-list"]/li')
             affiliations = cls.get_affiliation(affiliation_ref, affiliation_list)
 
             yield {
-                "1.Author": author,
-                "2.Contribution": contribution,
-                "4.National": affiliations.get('3.Affiliation1').split(';')[0].split(',')[-1],
-                "5.Order": order + 1,
-                "6.Title": title,
-                "7.Doi": doi,
-                "8.Date": date,
+                "1. Author": cls.strip_info(author),
+                "2. Contribution": cls.strip_info(contribution),
+                "4. National": cls.strip_info(
+                    affiliations.get('3. Affiliation1').split(';')[0].split(',')[-1]),
+                "5. Order": order + 1,
+                "6. Title": cls.strip_info(title),
+                "7. Doi": cls.strip_info(doi),
+                "8. Date": cls.strip_info(date),
                 **affiliations
             }
 
