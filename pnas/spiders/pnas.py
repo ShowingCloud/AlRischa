@@ -6,6 +6,7 @@ import pkgutil
 import os
 import sys
 import re
+from functools import reduce
 
 import scrapy
 
@@ -67,23 +68,25 @@ class PNASSpider(scrapy.Spider):
     def get_affiliation(cls, aref, alist):
         """To parse the affiliations"""
         return {(
-            ('', '3. ')[ref[0] == 0 and entry[0] == 0] +
-            'Affiliation' + str(ref[0] + 1) +
-            (str(entry[0] + 1), '')[entry[0] == 0]):
-                cls.strip_info(''.join(
-                    node.xpath('.//text()').get() or node.get()
+            ('', '3. ')[ref[0] == 0 and entry[0] == 0]
+            + 'Affiliation' + str(ref[0] + 1)
+            + ('.' + str(entry[0] + 1), '')[entry[0] == 0]):
+                cls.strip_info(' '.join(
+                    re.sub(r';*,*\s*(and)?\s*$', '',
+                           node.xpath('./text()').get() or node.get())
                     for node in entry[1].xpath(
-                        './/node()[not(self::sup)]')))
+                        './node()[not(self::sup)]')))
                 for ref in enumerate(aref)
                 for entry in enumerate(alist.xpath(
-                    './/address[sup[text()=$affiliation]]',
-                    affiliation=ref[1]))} or {
-                        '3. Affiliation1': cls.strip_info(''.join(
-                            (node.xpath('.//text()').get() or node.get())
-                            for node in alist.xpath(
-                                './/address/node()[not(self::sup)]'
-                                )))
-                    }
+                    './address[sup[text()=$affiliation]]',
+                    affiliation=ref[1]))
+                } or {
+                    '3. Affiliation1': cls.strip_info(' '.join(
+                        re.sub(r';*,*\s*(and)?\s*$', '',
+                               node.xpath('./text()').get() or node.get())
+                        for node in alist.xpath(
+                            './address/node()[not(self::sup)]')))
+                }
 
     @staticmethod
     def strip_info(info):
@@ -112,22 +115,27 @@ class PNASSpider(scrapy.Spider):
             contribution = cls.get_contribution(author, contributions)
 
             affiliation_ref = contributor.xpath(
-                './/a[@class="xref-aff"]/sup/text()'
+                './a[@class="xref-aff"]/sup/text()'
             ).getall() or contributor.xpath(
-                './/a[@class="xref-fn"]/sup/text()'
+                './a[@class="xref-fn"]/sup/text()'
             ).getall() or contributor.xpath(
-                './/a[@class="xref-aff"]/text()'
+                './a[@class="xref-aff"]/text()'
             ).getall() or contributor.xpath(
-                './/a[@class="xref-fn"]/text()'
+                './a[@class="xref-fn"]/text()'
             ).getall()
             affiliation_list = response.xpath('//ol[@class="affiliation-list"]/li')
             affiliations = cls.get_affiliation(affiliation_ref, affiliation_list)
 
+            national = (affiliations.get('3. Affiliation1').split(';')[0].split(',')[-1]
+                        if affiliations.get('3. Affiliation1').find(',') > 0
+                        else reduce((lambda x, y: x or
+                                     (y.find(',') > 0 and y.split(';')[0].split(',')[-1])),
+                                    affiliations.values(), ''))
+
             yield {
                 "1. Author": cls.strip_info(author),
                 "2. Contribution": cls.strip_info(contribution),
-                "4. National": cls.strip_info(
-                    affiliations.get('3. Affiliation1').split(';')[0].split(',')[-1]),
+                "4. National": cls.strip_info(national),
                 "5. Order": order + 1,
                 "6. Title": cls.strip_info(title),
                 "7. Doi": cls.strip_info(doi),
