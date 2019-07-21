@@ -40,8 +40,8 @@ class PNASSpider(scrapy.Spider):
 
         return None
 
-    @staticmethod
-    def get_contribution(author, contributions):
+    @classmethod
+    def get_contribution(cls, author, contributions):
         """To parse the contribution fields"""
         contributions_list = contributions.split(':')[1].split(';')
 
@@ -56,7 +56,7 @@ class PNASSpider(scrapy.Spider):
             pass
 
 
-        contribution = ', '.join(contrib.split('.')[-1].strip()
+        contribution = ', '.join(cls.strip_info(contrib.split('.')[-1].strip())
                                  for contrib in contributions_list
                                  if author_initials in contrib
                                  or short_initials in contrib
@@ -72,7 +72,7 @@ class PNASSpider(scrapy.Spider):
             + 'Affiliation' + str(ref[0] + 1)
             + ('.' + str(entry[0] + 1), '')[entry[0] == 0]):
                 cls.strip_info(' '.join(
-                    re.sub(r';*,*\s*(and)?\s*$', '',
+                    re.sub(r';*,*\s*([;,\s]and)?\s*$', '',
                            node.xpath('./text()').get() or node.get())
                     for node in entry[1].xpath(
                         './node()[not(self::sup)]')))
@@ -82,7 +82,7 @@ class PNASSpider(scrapy.Spider):
                     affiliation=ref[1]))
                 } or {
                     '3. Affiliation1': cls.strip_info(' '.join(
-                        re.sub(r';*,*\s*(and)?\s*$', '',
+                        re.sub(r';*,*\s*([;,\s]and)?\s*$', '',
                                node.xpath('./text()').get() or node.get())
                         for node in alist.xpath(
                             './address/node()[not(self::sup)]')))
@@ -93,7 +93,7 @@ class PNASSpider(scrapy.Spider):
         """(Hopefully) remove any white spaces and control characters
         from the beginning and end of the strings"""
         try:
-            return re.sub(r'^(\\n)*,*\s*(.*)\s*(\\n)*$', r'\2', info)
+            return re.sub(r'^(\\n)*;*,*\s*(.*?)\s*,*;*(\\n)*$', r'\2', info)
         except:
             return info
 
